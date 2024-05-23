@@ -1,3 +1,3 @@
-These are scripts for processing and visualizing data from screening workflows in drug discovery. 
+S4a HTRF interpolation : This script takes an HTRF readout file (384-well), assuming concentration of controls and blanks in column 23 and 24, and interpolates concentrations of samples quad-stamped (Z-format) into 384-well. 4-point stamp with quad-mapping performed to account for dynamic range of HTRF assays. Dilution factors are incorporated into script, but can be updated to account for changes in protocol. Additionally, the positive control standard concentrations are hardcoded, but can be updated to accommodate changes in protocol.These are scripts for processing and visualizing data from screening workflows in drug discovery. 
 
-They serve as a representation, but may not be the final version utilized in the workflow.
+
