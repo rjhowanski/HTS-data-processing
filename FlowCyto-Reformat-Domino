@@ -1,0 +1,117 @@
+# author: Raymond Howanski
+# script purpose is to take forecyt export that utilize specific templates 
+# and identify clones located on reformatted (96w to 384w) GDB plate set
+# input files are csv version of forecyt export and txt version of antibodyclonetable of GDB plateset
+# output is a txt file that is uploadable to GDB via the plate set, as well as a single file containing all data with cell line A concatenated to column header
+ 
+# import libraries
+import os 
+import pandas as pd
+import sys
+from sys import exit
+ 
+ 
+# load input parameters
+argv = sys.argv
+forecyt_file= argv[1].split('/')[1]
+clone_list=argv[2].split('/')[1]
+sample_type=argv[3]
+multiplex=argv[4]
+multiplex_name=argv[5]
+conc=argv[6]
+ 
+ 
+# default setting
+instrument = 'iQue'
+ 
+# load files
+#loading project-specific files
+os.chdir(r'/mnt/LauncherUploads')
+df = pd.read_csv(forecyt_file, header=0)
+#platefile=pd.read_excel(clone_list)
+platefile=pd.read_csv(clone_list,sep='\t',header=0)
+                             
+#set output directory
+os.chdir('/mnt/results')
+path = os.path.join(os.getcwd(),forecyt_file[:-4])
+os.makedirs(path, exist_ok=True)
+os.chdir(path)
+ 
+# structure plate information 
+df['Plate_split'] = df['Plate'].str.split(".").str[1]
+df['Plate_split'] = df['Plate_split'].astype(str).str[0]
+df['Cell Type']=df['Plate'].str.split(".").str[2]
+cells = df['Plate_split'].drop_duplicates()
+cells = cells.to_list()
+ 
+#established all_merged_df
+all_merged_df = pd.DataFrame(columns=["Plate ID", "Well Address","Well Type"])
+ 
+for cell in cells:
+ 
+    #copy df and quary for cell type
+    datafile=df.copy()
+    datafile= datafile.query("Plate_split == @cell")
+    
+    #change well ID to well address for column name to meet GDB requirement
+    datafile.rename(columns = {'Well ID':'Well Address'}, inplace = True)
+ 
+    # create key for datafile and platefile
+    datafile['Plate ID'] = datafile['Plate'].str.split(".").str[0]
+    datafile['Reference'] = datafile['Plate ID'] + "_" + datafile['Well Address']
+    platefile['Reference'] = platefile['Plate ID'] + "_" + platefile['Well Address']
+ 
+    # keep clones in datafile that exist in GDB platefile
+    gdb_df = datafile[datafile['Reference'].isin(platefile['Reference'])]
+ 
+    # drop reference column
+    gdb_df = gdb_df.drop('Reference', axis=1)
+ 
+    #duplicate data file
+    all_data = datafile.copy()
+ 
+    # add sample type to file
+    gdb_df['Sample Type'] = sample_type
+    gdb_df['Instrument'] = instrument
+    gdb_df['Sample Molar Concentration'] = conc
+    cell_name = gdb_df['Cell Type'].to_list()[0]
+ 
+    # count rows in upload file
+    gdb_count=len(gdb_df.index)
+ 
+    if multiplex == 'No':
+        gdb_df = gdb_df[['Plate ID','Sample Type','Cell Type', 'Sample Molar Concentration', 'Well Address','Total Cells Analyzed', 'GeoMetric MFI', 'FOB','Instrument']]
+        all_data = all_data[['Plate ID','Well Address','Well Type','Cell Type', 'Total Cells Analyzed', 'GeoMetric MFI', 'FOB']]
+ 
+    if multiplex == 'Yes':
+        gdb_df = gdb_df[['Plate ID', 'Sample Type', 'Cell Type', 'Well Address', 'Total Cells Analyzed','Total Cells Analyzed (B)', 'GeoMetric MFI', 
+        'GeoMetric MFI (B)','Ratio MFI / MFI (B)','FOB', 'FOB (B)', 'Sample Molar Concentration','Instrument']]
+        gdb_df['Cell Type (B)'] = multiplex_name
+        all_data = all_data[['Plate ID', 'Well Address','Well Type', 'Cell Type', 'Total Cells Analyzed','Total Cells Analyzed (B)', 'GeoMetric MFI', 'GeoMetric MFI (B)',
+        'Ratio MFI / MFI (B)','FOB', 'FOB (B)']]
+        all_data['Cell Type (B)'] = multiplex_name
+ 
+    # export gdb upload file as "GDB_Upload_" + cell line A name
+    gdb_df.to_csv(forecyt_file[:-4] + '_GDB_Upload_'+cell_name+'.txt',header=True,index=False,sep='\t')
+ 
+    #create df for merging 
+    for_merge =all_data.copy()
+    for_merge = for_merge.drop(['Cell Type'],axis=1)
+    for_merge.columns = for_merge.columns.map(lambda x : x+'_'+cell_name if x !='Plate ID' and x!='Well Address' and x!='Well Type' else x)
+    all_merged_df = all_merged_df.merge(for_merge, on=["Plate ID", "Well Address","Well Type"],how='outer')
+    
+    #filter merge for SAMPLES only and first quad of Positive control (A12 or A23) and Negative control
+    all_export = all_merged_df.copy()
+    all_export['Reference'] = all_export['Plate ID']+"_"+all_export['Well Address']
+    all_samples= all_export[all_export['Reference'].isin(platefile['Reference'])]
+    all_samples['Well Type']=sample_type
+    ctrls = all_export[all_export['Well Type']!='Sample']
+    ctrls = ctrls[~ctrls['Well Address'].isin(['B12','C12','D12','C23','C24','D23','D24','E23','E24','F23','F24','G23','G24','H23','H24'])]
+ 
+    #merge and export
+    final = pd.concat([all_samples,ctrls])
+    final = final.drop(['Reference'],axis=1)
+    
+final.to_csv(forecyt_file[:-4] + '_Manual_Analysis_File.csv',header=True,index=False)
+ 
+sys.exit()
