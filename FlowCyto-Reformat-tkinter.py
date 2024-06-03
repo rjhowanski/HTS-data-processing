@@ -1,14 +1,6 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# author: Raymond Howanski
-# version 1 (2022-aug-11)
 # Note: I have made modifications to the scripts on this repository to remove sensitive information 
 # and reduce annotations, ensuring they can be shared without risk of confidentiality issues.
-# script purpose is to take forecyt export that utilize SPECIFIC templates 
-# and identify clones located on reformatted (96w to 384w) GDB plate set
-# input files are csv version of forecyt export and txt version of antibodyclonetable of GDB plateset
-# output is a txt file that is uploadable to GDB via the plate set
+
 
 # import libraries
 import os 
